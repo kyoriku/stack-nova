@@ -1,101 +1,39 @@
 const redisService = require('../config/redisCache');
 
-// Paths that are NEVER legitimate - immediate long ban
-// Note: Uses startsWith() so prefixes catch all variants
-const obviousBotPaths = [
-  // Version control & environment
-  '/.git',              // Catches /.git/config, /.git/HEAD, etc.
-  '/.env',              // Catches /.env, /.env.local, /.env.production, etc.
-  '/.aws',              // Catches /.aws/credentials, /.aws/config, etc.
-  '/.ssh',
-  '/.config',
-  '/.htaccess',
-  '/.DS_Store',
-  // WordPress
-  '/wp-admin',
-  '/wp-login',
-  '/wp-includes',
-  '/wp-content',
-  '/wordpress',
-  '/xmlrpc.php',
-  // Database management
-  '/phpMyAdmin',
-  '/phpmyadmin',
-  // Admin panels & config
-  '/admin',             // Catches /admin/config, /administrator, /admin.php, etc.
-  // Cloud metadata (AWS, GCP, Azure)
-  '/latest',            // AWS metadata (catches /latest/meta-data, /latest/api/token, etc.)
-  '/metadata',          // GCP/Azure metadata (catches all /metadata/* paths)
-  '/computeMetadata',   // GCP compute metadata
-  // Backup files
-  '/backup',            // Catches /backup.sql, /backup, etc.
-  '/database',          // Catches /database.sql, etc.
-  '/dump',              // Catches /dump.sql, etc.
-  // Config files
-  '/config',            // Catches /config.json, /config.php, /web.config, etc.
-  '/composer.json',
-  '/package.json',
-  // Common app entry points (exposed source)
-  '/server.js',
-  '/app.js',
-  // Monorepo paths
-  '/apps/.env',
-  '/services/.env',
-  '/packages/.env',
-  // Framework-specific
+const LOCALHOST_IPS = new Set(['::1', '::ffff:127.0.0.1', '127.0.0.1']);
+
+const OBVIOUS_BOT_PATHS = [
+  '/.git', '/.env', '/.aws', '/.ssh', '/.config',
+  '/.htaccess', '/.DS_Store',
+  '/wp-admin', '/wp-login', '/wp-includes', '/wp-content',
+  '/wordpress', '/xmlrpc.php',
+  '/phpMyAdmin', '/phpmyadmin',
+  '/admin',
+  '/latest', '/metadata', '/computeMetadata',
+  '/backup', '/database', '/dump',
+  '/config', '/composer.json', '/package.json',
+  '/server.js', '/app.js',
+  '/apps/.env', '/services/.env', '/packages/.env',
   '/laravel',
-  // Common backdoors & shells
-  '/shell',
-  '/c99',
-  '/r57',
-  '/phpinfo',
-  // CI/CD & deployment configs
-  '/.github',           // GitHub Actions, workflows
-  '/.gitlab-ci',        // GitLab CI
-  '/azure-pipelines',   // Azure Pipelines
-  '/netlify.toml',
-  '/vercel.json',
-  // Infrastructure as Code
-  '/terraform',         // Terraform configs
-  '/.terraform',        // Terraform state
-  '/.kube',             // Kubernetes configs
-  '/kubernetes',        // Kubernetes manifests
-  // Docker
-  '/docker-compose',    // Docker Compose files
-  '/Dockerfile',
-  // Source maps (leak source code)
-  '/app.js.map',
-  '/bundle.js.map',
-  '/main.js.map',
-  '/vendor.js.map'
+  '/shell', '/c99', '/r57', '/phpinfo',
+  '/.github', '/.gitlab-ci', '/azure-pipelines',
+  '/netlify.toml', '/vercel.json',
+  '/terraform', '/.terraform', '/.kube', '/kubernetes',
+  '/docker-compose', '/Dockerfile',
+  '/app.js.map', '/bundle.js.map', '/main.js.map', '/vendor.js.map'
 ];
 
-// File extensions that indicate bot scanning
-const suspiciousExtensions = [
-  '.php',
-  '.asp',
-  '.aspx',
-  '.jsp',
-  '.xml',
-  '.yaml',        // Kubernetes, Docker Compose configs
-  '.yml',         // CI/CD configs (GitHub Actions, GitLab)
-  '.map',         // Source maps (leak entire source code)
-  '.toml',        // Config files (Netlify, Cargo, Poetry)
-  '.tfvars',      // Terraform variables (infrastructure secrets)
-  '.tfstate'      // Terraform state (infrastructure details)
+const SUSPICIOUS_EXTENSIONS = [
+  '.php', '.asp', '.aspx', '.jsp', '.xml',
+  '.yaml', '.yml', '.map', '.toml', '.tfvars', '.tfstate'
 ];
 
-// Extract subnet from IP (first 3 octets)
-const getSubnet = (ip) => {
-  const parts = ip.split('.');
-  if (parts.length !== 4) return ip; // Invalid IP, return as-is
-  return `${parts[0]}.${parts[1]}.${parts[2]}`;
+const isLocalhost = (ip) => {
+  return process.env.NODE_ENV !== 'production' && LOCALHOST_IPS.has(ip);
 };
 
-// Check if IP is currently banned
 const isBanned = async (ip) => {
   if (!redisService.isConnected()) return false;
-
   try {
     const banned = await redisService.get(`badbot:${ip}`);
     return banned !== null;
@@ -105,151 +43,72 @@ const isBanned = async (ip) => {
   }
 };
 
-// Get escalating ban duration based on number of violations
-const getBanDuration = (attemptCount, isHighSeverity = false) => {
-  // High severity paths (/.env, /wp-admin, etc) = immediate 7-day ban
-  if (isHighSeverity && attemptCount >= 1) return 604800;  // 7 days immediately
-
-  // Progressive escalation for lower severity
-  if (attemptCount >= 10) return 2592000;  // 30 days
-  if (attemptCount >= 7) return 604800;    // 7 days  
-  if (attemptCount >= 4) return 86400;     // 1 day (lowered from 5)
-  if (attemptCount >= 2) return 3600;      // 1 hour (lowered from 3)
-  return 0;                                // No ban until 2+ violations
+const getBanDuration = (attemptCount) => {
+  if (attemptCount >= 3) return 31536000; // 365 days
+  if (attemptCount >= 2) return 7776000;  // 90 days
+  if (attemptCount >= 1) return 2592000;  // 30 days
+  return 0;
 };
 
-// Track suspicious activity with subnet awareness
-const trackSuspiciousActivity = async (ip, path, severity = 'low') => {
+const trackSuspiciousActivity = async (ip, path) => {
   if (!redisService.isConnected()) return;
-
   try {
-    // Track individual IP violations
     const key = `bot_attempts:${ip}`;
-    const currentAttempts = await redisService.get(key) || 0;
-    const isFirstOffense = currentAttempts === 0;
-    const multiplier = severity === 'high' ? 3 : 1;
-    const newAttempts = currentAttempts + multiplier;
+    const currentAttempts = parseInt(await redisService.get(key) || '0');
+    const newAttempts = currentAttempts + 1;
 
-    // Track subnet violations to detect IP rotation
-    const subnet = getSubnet(ip);
-    const subnetKey = `bot_subnet:${subnet}`;
-    const subnetAttempts = await redisService.get(subnetKey) || 0;
-    const newSubnetAttempts = subnetAttempts + multiplier;
+    const banDuration = getBanDuration(newAttempts);
+    const counterTTL = banDuration + 2592000; // ban + 30 day buffer
 
-    // If subnet has many violations, escalate severity automatically
-    // This catches bots rotating IPs within the same subnet
-    if (newSubnetAttempts >= 15 && severity !== 'high') {
-      severity = 'high';
-      console.log(`\x1b[33m[SUBNET PATTERN DETECTED]\x1b[0m ${subnet}.x has ${newSubnetAttempts} total violations across multiple IPs`);
-    }
-
-    // Determine ban duration
-    const isHighSeverity = severity === 'high';
-    const banDuration = getBanDuration(newAttempts, isHighSeverity);
-
-    // Counter TTL = ban duration + 7 day buffer (minimum 7 days)
-    // This ensures violations persist longer than the ban, enabling escalation
-    const counterTTL = Math.max(604800, banDuration + 604800);
-
-    // Store attempt counts with extended TTL
     await redisService.set(key, newAttempts, counterTTL);
-    await redisService.set(subnetKey, newSubnetAttempts, 604800); // 7 days
 
-    // Log the activity with clear messaging
-    const attemptDisplay = isHighSeverity && isFirstOffense
-      ? `1st offense (weighted as ${newAttempts})`
-      : `${newAttempts} attempts`;
-
-    console.log(`\x1b[31m[SUSPICIOUS ACTIVITY]\x1b[0m ${ip} (${subnet}.x) → ${path} (${attemptDisplay}, Subnet: ${newSubnetAttempts}, Severity: ${severity})`);
+    console.log(`\x1b[33m[SUSPICIOUS]\x1b[0m ${ip} → ${path} (offense #${newAttempts})`);
 
     if (banDuration > 0) {
       await redisService.set(`badbot:${ip}`, true, banDuration);
-      const banHours = Math.round(banDuration / 3600);
       const banDays = Math.round(banDuration / 86400);
-      const banDisplay = banDays >= 1 ? `${banDays} days` : `${banHours} hours`;
-
-      const banReason = isHighSeverity && isFirstOffense
-        ? `immediate ${severity}-severity ban`
-        : `${newAttempts} violations`;
-
-      console.log(`\x1b[31m[IP BANNED]\x1b[0m ${ip} banned for ${banDisplay} (${banReason})`);
-
-      // Production monitoring - track ban metrics
-      if (process.env.NODE_ENV === 'production') {
-        console.log(`\x1b[34m[BAN METRICS]\x1b[0m IP: ${ip}, Subnet: ${subnet}.x, Path: ${path}, Weighted: ${newAttempts}, Ban: ${banDisplay}, Severity: ${severity}, FirstOffense: ${isFirstOffense}`);
-        // Future: Add Sentry, LogRocket, or analytics service here
-      }
+      console.log(`\x1b[31m[IP BANNED]\x1b[0m ${ip} banned for ${banDays} days (offense #${newAttempts})`);
     }
-
   } catch (error) {
     console.error('Error tracking suspicious activity:', error);
   }
 };
 
-// Middleware to check for banned IPs
 const checkBannedIP = async (req, res, next) => {
-  const isLocalhost = req.ip === '::1' ||
-    req.ip === '::ffff:127.0.0.1' ||
-    req.ip === '127.0.0.1';
-
-  if (isLocalhost && process.env.NODE_ENV !== 'production') {
-    return next();
-  }
+  if (isLocalhost(req.ip)) return next();
 
   const banned = await isBanned(req.ip);
 
   if (banned) {
-    // Only log once per hour per IP to reduce spam
     const logKey = `blocked_log:${req.ip}`;
     const alreadyLogged = await redisService.get(logKey);
 
     if (!alreadyLogged) {
       console.log(`\x1b[31m[BLOCKED]\x1b[0m ${req.ip} → ${req.path}`);
-      await redisService.set(logKey, true, 3600); // 1 hour
+      await redisService.set(logKey, true, 3600);
     }
 
-    // Return 404 instead of 403 - don't reveal defense exists
     return res.status(404).json({ error: 'Not Found' });
   }
 
   next();
 };
 
-// Honeypot middleware for detecting bots
 const botHoneypot = async (req, res, next) => {
-  // Whitelist dev routes and localhost
-  const isLocalhost = req.ip === '::1' ||
-    req.ip === '::ffff:127.0.0.1' ||
-    req.ip === '127.0.0.1';
+  if (isLocalhost(req.ip)) return next();
 
-  const isDevRoute = req.path.startsWith('/api/dev/');
+  const path = req.path.toLowerCase();
 
-  if ((isLocalhost || isDevRoute) && process.env.NODE_ENV !== 'production') {
-    return next();
-  }
-
-  // Check for obvious bot/attacker paths (NEVER legitimate)
-  const isObviousBot = obviousBotPaths.some(path =>
-    req.path.toLowerCase().startsWith(path.toLowerCase())
+  const isObviousBot = OBVIOUS_BOT_PATHS.some(botPath =>
+    path.startsWith(botPath.toLowerCase())
   );
 
-  // Check for suspicious file extensions (PHP, ASP, JSP, XML on a React/Node app)
-  const hasSuspiciousExtension = suspiciousExtensions.some(ext =>
-    req.path.toLowerCase().endsWith(ext)
+  const hasSuspiciousExtension = SUSPICIOUS_EXTENSIONS.some(ext =>
+    path.endsWith(ext)
   );
 
   if (isObviousBot || hasSuspiciousExtension) {
-    await trackSuspiciousActivity(req.ip, req.path, 'high');
-    return res.status(404).json({ error: 'Not Found' });
-  }
-
-  // For non-existent API routes, track but be more lenient
-  // This catches routes like /api/postz or /api/invalid-endpoint
-  if (req.path.startsWith('/api/')) {
-    // We'll let Express handle the 404 naturally through routes
-    // But if they hit this middleware, the route doesn't exist
-    // Track it as low severity (could be a typo)
-    await trackSuspiciousActivity(req.ip, req.path, 'low');
+    await trackSuspiciousActivity(req.ip, req.path);
     return res.status(404).json({ error: 'Not Found' });
   }
 
@@ -260,5 +119,5 @@ module.exports = {
   checkBannedIP,
   botHoneypot,
   isBanned,
-  trackSuspiciousActivity  // Export for use in rate limiters
+  trackSuspiciousActivity
 };
