@@ -18,7 +18,7 @@ const Footer = () => {
       <div className="relative z-10 container mx-auto px-4 py-6">
         <div className="flex flex-col items-center">
           <p className="text-gray-600 dark:text-gray-400 text-sm font-medium">
-            © 2025{' '}
+            © {new Date().getFullYear()}{' '}
             <span className="font-bold bg-gradient-to-r 
                            from-gray-900 via-blue-800 to-purple-800 
                            dark:from-gray-100 dark:via-blue-300 dark:to-purple-300
