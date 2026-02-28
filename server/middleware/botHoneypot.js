@@ -28,6 +28,23 @@ const SUSPICIOUS_EXTENSIONS = [
   '.yaml', '.yml', '.map', '.toml', '.tfvars', '.tfstate'
 ];
 
+const getClientIP = (req) => {
+  // Fastly sets this to the true client IP at their edge
+  const fastlyIP = req.headers['fastly-client-ip'];
+  if (fastlyIP) {
+    return fastlyIP.trim();
+  }
+
+  // Fallback: use rightmost XFF entry (last untrusted proxy)
+  const forwarded = req.headers['x-forwarded-for'];
+  if (forwarded) {
+    const ips = forwarded.split(',');
+    return ips[ips.length - 1].trim();
+  }
+
+  return req.ip;
+};
+
 const isLocalhost = (ip) => {
   return process.env.NODE_ENV !== 'production' && LOCALHOST_IPS.has(ip);
 };
@@ -75,16 +92,17 @@ const trackSuspiciousActivity = async (ip, path) => {
 };
 
 const checkBannedIP = async (req, res, next) => {
-  if (isLocalhost(req.ip)) return next();
+  const ip = getClientIP(req);
+  if (isLocalhost(ip)) return next();
 
-  const banned = await isBanned(req.ip);
+  const banned = await isBanned(ip);
 
   if (banned) {
-    const logKey = `blocked_log:${req.ip}`;
+    const logKey = `blocked_log:${ip}`;
     const alreadyLogged = await redisService.get(logKey);
 
     if (!alreadyLogged) {
-      console.log(`\x1b[31m[BLOCKED]\x1b[0m ${req.ip} → ${req.path}`);
+      console.log(`\x1b[31m[BLOCKED]\x1b[0m ${ip} → ${req.path}`);
       await redisService.set(logKey, true, 3600);
     }
 
@@ -95,7 +113,8 @@ const checkBannedIP = async (req, res, next) => {
 };
 
 const botHoneypot = async (req, res, next) => {
-  if (isLocalhost(req.ip)) return next();
+  const ip = getClientIP(req);
+  if (isLocalhost(ip)) return next();
 
   const path = req.path.toLowerCase();
 
@@ -108,7 +127,7 @@ const botHoneypot = async (req, res, next) => {
   );
 
   if (isObviousBot || hasSuspiciousExtension) {
-    await trackSuspiciousActivity(req.ip, req.path);
+    await trackSuspiciousActivity(ip, req.path);
     return res.status(404).json({ error: 'Not Found' });
   }
 
