@@ -123,11 +123,11 @@ export const UserComments = ({ comments, prefetchPost }) => {
       {paginatedComments.map((comment, index) => (
         <div
           key={comment.id}
-          style={{
-            animation: 'fadeInUp 0.25s ease-out forwards',
-            animationDelay: `${index * 0.05}s`,
-            opacity: 0
-          }}
+          // style={{
+          //   animation: 'fadeInUp 0.25s ease-out forwards',
+          //   animationDelay: `${index * 0.05}s`,
+          //   opacity: 0
+          // }}
         >
           <div className="relative bg-gradient-to-br from-white to-gray-50/50 
                         dark:from-gray-800 dark:to-gray-800/50
@@ -208,7 +208,7 @@ export const UserComments = ({ comments, prefetchPost }) => {
         />
       )}
 
-      <style>{`
+      {/* <style>{`
         @keyframes fadeInUp {
           from {
             opacity: 0;
@@ -219,7 +219,7 @@ export const UserComments = ({ comments, prefetchPost }) => {
             transform: translateY(0);
           }
         }
-      `}</style>
+      `}</style> */}
     </div>
   );
 };

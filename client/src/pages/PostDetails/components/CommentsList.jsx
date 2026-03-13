@@ -54,11 +54,11 @@ export const CommentsList = ({
         {sortedComments.map((comment, index) => (
           <div
             key={comment.id}
-            style={{
-              animation: 'fadeInUp 0.25s ease-out forwards',
-              animationDelay: `${index * 0.05}s`,
-              opacity: 0
-            }}
+            // style={{
+            //   animation: 'fadeInUp 0.25s ease-out forwards',
+            //   animationDelay: `${index * 0.05}s`,
+            //   opacity: 0
+            // }}
           >
             <CommentItem
               comment={comment}
@@ -71,7 +71,7 @@ export const CommentsList = ({
         ))}
       </div>
 
-      <style>{`
+      {/* <style>{`
         @keyframes fadeInUp {
           from {
             opacity: 0;
@@ -82,7 +82,7 @@ export const CommentsList = ({
             transform: translateY(0);
           }
         }
-      `}</style>
+      `}</style> */}
     </div>
   );
 };

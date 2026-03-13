@@ -108,11 +108,11 @@ export const UserPosts = ({ posts, prefetchPost }) => {
       {paginatedPosts.map((post, index) => (
         <div
           key={post.id}
-          style={{
-            animation: 'fadeInUp 0.25s ease-out forwards',
-            animationDelay: `${index * 0.05}s`,
-            opacity: 0
-          }}
+          // style={{
+          //   animation: 'fadeInUp 0.25s ease-out forwards',
+          //   animationDelay: `${index * 0.05}s`,
+          //   opacity: 0
+          // }}
         >
           <PostItem post={post} prefetchPost={prefetchPost} />
         </div>
@@ -126,7 +126,7 @@ export const UserPosts = ({ posts, prefetchPost }) => {
         />
       )}
 
-      <style>{`
+      {/* <style>{`
         @keyframes fadeInUp {
           from {
             opacity: 0;
@@ -137,7 +137,7 @@ export const UserPosts = ({ posts, prefetchPost }) => {
             transform: translateY(0);
           }
         }
-      `}</style>
+      `}</style> */}
     </div>
   );
 };
