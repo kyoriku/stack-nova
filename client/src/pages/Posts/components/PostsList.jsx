@@ -10,18 +10,18 @@ export const PostsList = ({ posts, prefetchPost }) => (
       {posts.map((post, index) => (
         <div
           key={post.id}
-          style={{
-            animation: 'fadeInUp 0.25s ease-out forwards',
-            animationDelay: `${index * 0.05}s`,
-            opacity: 0
-          }}
+          // style={{
+          //   animation: 'fadeInUp 0.25s ease-out forwards',
+          //   animationDelay: `${index * 0.05}s`,
+          //   opacity: 0
+          // }}
         >
           <PostItem post={post} prefetchPost={prefetchPost} />
         </div>
       ))}
     </div>
 
-    <style>{`
+    {/* <style>{`
       @keyframes fadeInUp {
         from {
           opacity: 0;
@@ -32,6 +32,6 @@ export const PostsList = ({ posts, prefetchPost }) => (
           transform: translateY(0);
         }
       }
-    `}</style>
+    `}</style> */}
   </section>
 );
