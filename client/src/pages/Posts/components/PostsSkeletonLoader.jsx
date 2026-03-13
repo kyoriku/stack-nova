@@ -18,7 +18,7 @@ const PostSkeleton = () => {
 
         {/* Excerpt skeleton - 2 lines */}
         <div className="space-y-2">
-          <div className="h-4 bg-gradient-to-r from-gray-200 to-gray-300 
+          <div className="h-4.25 bg-gradient-to-r from-gray-200 to-gray-300 
                         dark:from-gray-700 dark:to-gray-600 
                         rounded w-full" />
           {/* <div className="h-4 bg-gradient-to-r from-gray-200 to-gray-300 
@@ -54,7 +54,7 @@ const PostSkeleton = () => {
 export const PostsSkeletonLoader = ({ count = 10 }) => {
   return (
     <div
-      className="space-y-4"
+      className="space-y-6"
       aria-label={`Loading ${count} posts`}
       role="status"
     >
