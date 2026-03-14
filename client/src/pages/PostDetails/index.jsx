@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useParams, Link, useLocation, useNavigate } from 'react-router-dom';
+import { useParams, Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import LoadingSpinner from '../../components/LoadingSpinner';
 import NotFound from '../NotFound';
@@ -14,15 +14,14 @@ import { useQueryClient } from '@tanstack/react-query';
 import { LogIn } from 'lucide-react';
 
 const PostDetails = () => {
-  const { identifier } = useParams();
-  const navigate = useNavigate();
+  const { slug } = useParams();
   const queryClient = useQueryClient();
   const [commentText, setCommentText] = useState('');
   const [commentError, setCommentError] = useState('');
   const { isAuthenticated, user } = useAuth();
   const location = useLocation();
 
-  const { data: post, isLoading, error, isError } = usePost(identifier);
+  const { data: post, isLoading, error, isError } = usePost(slug);
   const {
     editingCommentId,
     setEditingCommentId,
@@ -34,20 +33,7 @@ const PostDetails = () => {
     deleteCommentMutation,
     handleEditClick,
     handleDeleteClick
-  } = useComments(post?.slug || identifier);
-
-  // Helper function to check if identifier is UUID
-  const isUUID = (str) => {
-    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-    return uuidRegex.test(str);
-  };
-
-  // Handle UUID -> slug redirect
-  useEffect(() => {
-    if (post && post.slug && identifier !== post.slug && isUUID(identifier)) {
-      navigate(`/post/${post.slug}`, { replace: true });
-    }
-  }, [post, identifier, navigate]);
+  } = useComments(slug);
 
   // Effect to handle body scroll lock when modal is open
   useEffect(() => {
@@ -68,9 +54,9 @@ const PostDetails = () => {
   useEffect(() => {
     const isFromEdit = location.state?.fromEdit;
     if (isFromEdit) {
-      queryClient.invalidateQueries({ queryKey: ['post', identifier] });
+      queryClient.invalidateQueries({ queryKey: ['post', slug] });
     }
-  }, [identifier, location.state, queryClient]);
+  }, [slug, location.state, queryClient]);
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -159,7 +145,7 @@ const PostDetails = () => {
       },
       "mainEntityOfPage": {
         "@type": "WebPage",
-        "@id": `https://stacknova.ca/post/${post.slug || identifier}`
+        "@id": `https://stacknova.ca/post/${post.slug}`
       },
       "commentCount": post.comments?.length || 0,
       "comment": post.comments?.map(comment => ({
@@ -179,11 +165,10 @@ const PostDetails = () => {
   }
 
   if (isError || !post) {
-    const displayName = isUUID(identifier) ? 'this post' : `"${identifier}"`;
     return (
       <NotFound
         title="Post not found"
-        message={`The post ${displayName} does not exist or could not be found.`}
+        message={`The post "${slug}" does not exist or could not be found.`}
         linkText="Browse all posts"
         linkTo="/"
       />
@@ -195,7 +180,7 @@ const PostDetails = () => {
       <SEO
         title={post.title}
         description={post.excerpt || `A question by ${post.user.username} on StackNova`}
-        canonicalPath={`/post/${post.slug || identifier}`}
+        canonicalPath={`/post/${post.slug}`}
         type="article"
         image="https://stacknova.ca/screenshots/2-StackNova-Question.jpg"
         jsonLd={generateJsonLd(post)}
@@ -227,13 +212,13 @@ const PostDetails = () => {
                       border border-gray-200/60 dark:border-gray-700/60
                       shadow-sm shadow-gray-900/5 dark:shadow-black/20
                       overflow-hidden">
-          
+
           {/* Background gradient accent */}
           <div className="absolute top-0 right-0 w-32 h-32 
                         bg-gradient-to-br from-blue-500/10 to-purple-500/10
                         dark:from-blue-500/20 dark:to-purple-500/20
                         rounded-full blur-3xl -z-0" />
-          
+
           <div className="relative z-10 flex flex-col items-center gap-3">
             <div className="w-12 h-12 rounded-full 
                           bg-gradient-to-br from-blue-100 to-purple-100

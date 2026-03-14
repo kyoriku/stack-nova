@@ -19,8 +19,7 @@ const router = createBrowserRouter([
     errorElement: <NotFound />,
     children: [
       { index: true, element: <ErrorBoundary><Posts /></ErrorBoundary> },
-      // { path: "post/:slug", element: <ErrorBoundary><PostDetails /></ErrorBoundary> },
-      { path: "post/:identifier", element: <ErrorBoundary><PostDetails /></ErrorBoundary> },
+      { path: "post/:slug", element: <ErrorBoundary><PostDetails /></ErrorBoundary> },
       {
         path: "user/:username",
         element: <UserProfileWrapper />

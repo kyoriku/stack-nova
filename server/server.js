@@ -11,7 +11,6 @@ const getHelmetConfig = require('./config/helmet');
 const { apiLimiter, readLimiter } = require('./middleware/rateLimiter');
 // const { sessionSecurity, checkInactivity } = require('./middleware/sessionSecurity');
 const { checkBannedIP, botHoneypot } = require('./middleware/botHoneypot');
-const uuidRedirect = require('./middleware/uuidRedirect');
 const faviconHeaders = require('./middleware/favicon');
 const { errorHandler } = require('./middleware/errorHandler');
 
@@ -76,10 +75,7 @@ createSessionConfig(isProd).then((sessionConfig) => {
   // Bot honeypot
   app.use(botHoneypot);
 
-  // UUID redirect (production only)
-  if (isProd) {
-    app.get('/post/:identifier', uuidRedirect);
-  }
+
 
   // SPA catch-all
   app.get('*', (req, res) => {

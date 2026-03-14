@@ -62,43 +62,15 @@ const postController = {
   }),
 
   getSinglePost: asyncHandler(async (req, res) => {
-    const identifier = req.params.identifier;
-    let whereClause;
-
-    // Determine if the identifier is a UUID or a slug
-    if (isUUID(identifier)) {
-      whereClause = { id: identifier };
-    } else {
-      whereClause = { slug: identifier };
-    }
+    const { slug } = req.params;
 
     const postData = await Post.findOne({
-      where: whereClause,
+      where: { slug },
       ...postQueryOptions
     });
 
     if (!postData) {
-      throw new AppError(
-        'No post found with this identifier',
-        404,
-        ERROR_CODES.POST_NOT_FOUND
-      );
-    }
-
-    // Handle UUID requests for SEO
-    if (isUUID(identifier)) {
-      const acceptsHtml = req.headers.accept && req.headers.accept.includes('text/html');
-      const acceptsJson = req.headers.accept && req.headers.accept.includes('application/json');
-      const userAgent = req.headers['user-agent'] || '';
-
-      const isBrowserNavigation = acceptsHtml && userAgent && !acceptsJson;
-      const isApiCall = acceptsJson || req.headers['x-requested-with'] === 'XMLHttpRequest';
-
-      if (isBrowserNavigation) {
-        return res.redirect(301, `/post/${postData.slug}`);
-      } else {
-        return res.json(postData.get({ plain: true }));
-      }
+      throw new AppError('No post found', 404, ERROR_CODES.POST_NOT_FOUND);
     }
 
     res.json(postData.get({ plain: true }));
@@ -235,7 +207,7 @@ const postController = {
 
   updatePost: asyncHandler(async (req, res) => {
     const userId = req.session.user_id;
-    const identifier = req.params.identifier;
+    const { slug } = req.params;
 
     if (!userId) {
       throw new AppError(
@@ -245,12 +217,7 @@ const postController = {
       );
     }
 
-    let whereClause = { user_id: userId };
-    if (isUUID(identifier)) {
-      whereClause.id = identifier;
-    } else {
-      whereClause.slug = identifier;
-    }
+    let whereClause = { user_id: userId, slug };
 
     const post = await Post.findOne({
       where: whereClause,
@@ -338,7 +305,7 @@ const postController = {
   // Delete a post
   deletePost: asyncHandler(async (req, res) => {
     const userId = req.session.user_id;
-    const identifier = req.params.identifier;
+    const { slug } = req.params;
 
     if (!userId) {
       throw new AppError(
@@ -348,13 +315,7 @@ const postController = {
       );
     }
 
-    // Determine if the identifier is a UUID or slug
-    let whereClause = { user_id: userId };
-    if (isUUID(identifier)) {
-      whereClause.id = identifier;
-    } else {
-      whereClause.slug = identifier;
-    }
+    let whereClause = { user_id: userId, slug };
 
     // Find the post to validate ownership
     const post = await Post.findOne({
