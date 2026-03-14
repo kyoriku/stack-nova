@@ -35,8 +35,8 @@ app.use(getHelmetConfig(isProd));
 
 // Core middleware
 app.use(cors(corsOptions));
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+app.use(express.json({ limit: '50kb' }));
+app.use(express.urlencoded({ extended: true, limit: '50kb' }));
 
 // Health checks (before session)
 app.use('/', healthRoutes);
@@ -44,10 +44,6 @@ app.use('/', healthRoutes);
 // Initialize session (async)
 createSessionConfig(isProd).then((sessionConfig) => {
   app.use(session(sessionConfig));
-
-  // Session security
-  // app.use('/api', sessionSecurity);
-  // app.use('/api', checkInactivity);
 
   // Rate limiting
   app.use(apiLimiter);
@@ -74,8 +70,6 @@ createSessionConfig(isProd).then((sessionConfig) => {
 
   // Bot honeypot
   app.use(botHoneypot);
-
-
 
   // SPA catch-all
   app.get('*', (req, res) => {

@@ -235,7 +235,7 @@ const Login = () => {
                   className="ml-2 text-sm font-medium text-gray-700 dark:text-gray-300
                            cursor-pointer select-none"
                 >
-                  Remember me for 30 days
+                  Remember me for 7 days
                 </label>
               </div>
 
