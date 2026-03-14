@@ -5,20 +5,17 @@ import { ThemeProvider } from "../context/ThemeContext";
 import { QueryClient, QueryClientProvider, QueryCache, MutationCache } from "@tanstack/react-query";
 import Header from "./Header";
 import Footer from "./Footer";
-import SessionWarningModal from "./sessionWarningModal";
 import ScrollToTop from './ScrollToTop';
 
 // QueryClient with auth integration
 const QueryClientWithAuth = ({ children }) => {
-  const { handleSessionExpired, resetInactivityTimer } = useAuth();
+  const { handleSessionExpired } = useAuth();
   const handleSessionExpiredRef = useRef(handleSessionExpired);
-  const resetInactivityTimerRef = useRef(resetInactivityTimer);
 
-  // Keep refs up to date without causing re-renders
+  // Keep ref up to date without causing re-renders
   useEffect(() => {
     handleSessionExpiredRef.current = handleSessionExpired;
-    resetInactivityTimerRef.current = resetInactivityTimer;
-  }, [handleSessionExpired, resetInactivityTimer]);
+  }, [handleSessionExpired]);
 
   // Create QueryClient once with stable callbacks using refs
   const queryClient = useMemo(() => {
@@ -29,9 +26,6 @@ const QueryClientWithAuth = ({ children }) => {
             handleSessionExpiredRef.current(error?.message || 'Your session has expired.');
           }
         },
-        onSuccess: () => {
-          resetInactivityTimerRef.current();
-        }
       }),
       mutationCache: new MutationCache({
         onError: (error) => {
@@ -39,9 +33,6 @@ const QueryClientWithAuth = ({ children }) => {
             handleSessionExpiredRef.current(error?.message || 'Your session has expired.');
           }
         },
-        onSuccess: () => {
-          resetInactivityTimerRef.current();
-        }
       }),
       defaultOptions: {
         queries: {
@@ -81,7 +72,6 @@ export const RootLayout = () => {
               <Outlet />
             </main>
             <Footer />
-            <SessionWarningModal />
           </div>
         </QueryClientWithAuth>
       </ThemeProvider>
