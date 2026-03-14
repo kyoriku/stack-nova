@@ -44,7 +44,6 @@ Post.init(
   {
     hooks: {
       beforeCreate: async (post) => {
-        // Only handle excerpt generation
         if (post.content) {
           post.excerpt = generateExcerpt(post.content);
         }
@@ -55,17 +54,11 @@ Post.init(
         }
       },
     },
-    // Performance indexes
     indexes: [
-      {
-        fields: ['user_id'] // Speeds up fetching all posts by a user
-      },
-      {
-        fields: ['created_at'] // Speeds up sorting all posts by date
-      },
-      {
-        fields: ['user_id', 'created_at'] // Composite: user's posts sorted by date (most efficient)
-      }
+      { unique: true, fields: ['slug'] },
+      { fields: ['user_id'] },
+      { fields: ['created_at'] }, 
+      { fields: ['user_id', 'created_at'] }
     ],
     sequelize,
     timestamps: true,

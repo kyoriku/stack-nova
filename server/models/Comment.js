@@ -4,8 +4,6 @@ const { generateExcerpt } = require('../utils/excerptUtils');
 
 class Comment extends Model { }
 
-// Initialize Comment model with columns and configuration
-// Includes comment text and relationships to users and posts
 Comment.init(
   {
     id: {
@@ -40,35 +38,22 @@ Comment.init(
   {
     hooks: {
       beforeCreate: async (comment) => {
-        // Generate excerpt for new comments
         if (comment.comment_text) {
           comment.excerpt = generateExcerpt(comment.comment_text);
         }
       },
       beforeUpdate: async (comment) => {
-        // Regenerate excerpt if comment_text has changed
         if (comment.changed('comment_text')) {
           comment.excerpt = generateExcerpt(comment.comment_text);
         }
       },
     },
-    // Performance indexes
     indexes: [
-      {
-        fields: ['post_id'] // Speeds up loading all comments for a post
-      },
-      {
-        fields: ['user_id'] // Speeds up loading all comments by a user
-      },
-      {
-        fields: ['created_at'] // Speeds up sorting comments by date
-      },
-      {
-        fields: ['post_id', 'created_at'] // Composite: post's comments sorted by date (most efficient)
-      },
-      {
-        fields: ['user_id', 'created_at'] // Composite: user's comments sorted by date
-      }
+      { fields: ['post_id'] },
+      { fields: ['user_id'] },
+      { fields: ['created_at'] },
+      { fields: ['post_id', 'created_at'] },
+      { fields: ['user_id', 'created_at'] }
     ],
     sequelize,
     timestamps: true,
