@@ -9,10 +9,10 @@ const sequelize = require('./config/connection');
 const createSessionConfig = require('./config/session');
 const getHelmetConfig = require('./config/helmet');
 const { apiLimiter, readLimiter } = require('./middleware/rateLimiter');
-// const { sessionSecurity, checkInactivity } = require('./middleware/sessionSecurity');
 const { checkBannedIP, botHoneypot } = require('./middleware/botHoneypot');
 const faviconHeaders = require('./middleware/favicon');
 const { errorHandler } = require('./middleware/errorHandler');
+const requestLogger = require('./middleware/requestLogger');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -37,6 +37,9 @@ app.use(getHelmetConfig(isProd));
 app.use(cors(corsOptions));
 app.use(express.json({ limit: '50kb' }));
 app.use(express.urlencoded({ extended: true, limit: '50kb' }));
+
+// Request logging
+app.use(requestLogger);
 
 // Health checks (before session)
 app.use('/', healthRoutes);

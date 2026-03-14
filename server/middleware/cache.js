@@ -31,20 +31,20 @@ const cacheMiddleware = async (req, res, next) => {
       return next();
     }
 
-
-
     const cachedData = await redisService.get(cacheKey);
 
     if (cachedData) {
       if (process.env.NODE_ENV === 'development') {
         console.log('\x1b[32m%s\x1b[0m', `Cache HIT: ${cacheKey}`);
       }
+      res.locals.cacheStatus = 'HIT';
       return res.json(cachedData);
     }
 
     if (process.env.NODE_ENV === 'development') {
       console.log('\x1b[33m%s\x1b[0m', `Cache MISS - Fetching from DB: ${cacheKey}`);
     }
+    res.locals.cacheStatus = 'MISS';
 
     // Store the original json method
     const originalJson = res.json;
