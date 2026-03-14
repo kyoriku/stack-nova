@@ -1,14 +1,12 @@
 import { useCallback } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
+import { apiFetch } from '../../../utils/apiFetch';
 
 export const usePrefetchPosts = () => {
   const queryClient = useQueryClient();
 
   return useCallback(() => {
-    // Skip prefetching if the user has data-saving mode enabled
     if (navigator.connection && navigator.connection.saveData) return;
-    // Skip if the posts are already in the cache
-    // if (queryClient.getQueryData(['posts'])) return;
 
     let timer;
     clearTimeout(timer);
@@ -17,19 +15,14 @@ export const usePrefetchPosts = () => {
         queryKey: ['posts'],
         queryFn: async () => {
           try {
-            const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/posts`);
-            if (!response.ok) {
-              console.warn(`Failed to prefetch posts: ${response.status}`);
-              return null;
-            }
-            return response.json();
+            return await apiFetch(`/posts`);
           } catch (error) {
             console.warn('Error prefetching posts:', error);
             return null;
           }
         },
-        staleTime: 1000 * 60 * 5, // 5 minutes
-        cacheTime: 1000 * 60 * 30  // 30 minutes
+        staleTime: 1000 * 60 * 5,
+        cacheTime: 1000 * 60 * 30
       });
     }, 100);
 

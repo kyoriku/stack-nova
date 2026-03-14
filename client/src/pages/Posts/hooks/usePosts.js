@@ -1,32 +1,13 @@
 import { useQuery } from '@tanstack/react-query';
 import { format, parseISO } from 'date-fns';
+import { apiFetch } from '../../../utils/apiFetch';
 
 export const usePosts = (searchTerm) => {
   const { data: posts, isLoading, error } = useQuery({
     queryKey: ['posts'],
-    queryFn: async () => {
-      try {
-        const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/posts`);
-        if (!response.ok) {
-          if (response.status === 404) {
-            throw new Error('Posts not found');
-          }
-          if (response.status === 401) {
-            throw new Error('Unauthorized access');
-          }
-          throw new Error(`Server error: ${response.status}`);
-        }
-        return response.json();
-      } catch (error) {
-        if (error instanceof TypeError) {
-          throw new Error('Network error - please check your connection');
-        }
-        throw error;
-      }
-    },
-    // Caching configuration
-    staleTime: 1000 * 60 * 5, // Consider data fresh for 5 minutes
-    cacheTime: 1000 * 60 * 30, // Keep data in cache for 30 minutes
+    queryFn: async () => await apiFetch(`/posts`),
+    staleTime: 1000 * 60 * 5,
+    cacheTime: 1000 * 60 * 30
   });
 
   const filteredPosts = posts?.filter(post => {

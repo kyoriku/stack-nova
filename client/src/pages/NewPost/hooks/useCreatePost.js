@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../../context/AuthContext';
 import { POST_LIMITS } from '../constants';
 import { validateCodeBlocks } from '../utils';
+import { apiFetch } from '../../../utils/apiFetch';
 
 export const useCreatePost = () => {
   const [error, setError] = useState('');
@@ -12,32 +13,10 @@ export const useCreatePost = () => {
   const { user } = useAuth();
 
   const createPostMutation = useMutation({
-    mutationFn: async (postData) => {
-      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/posts`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(postData),
-        credentials: 'include'
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        const error = new Error('Failed to create post');
-        
-        if (errorData.errors && Array.isArray(errorData.errors)) {
-          error.message = errorData.errors.map(err => err.msg).join('. ');
-        } else if (errorData.message) {
-          error.message = errorData.message;
-        }
-        
-        error.response = { data: errorData };
-        throw error;
-      }
-
-      return response.json();
-    },
+    mutationFn: async (postData) => await apiFetch(`/posts`, {
+      method: 'POST',
+      body: JSON.stringify(postData)
+    }),
     onMutate: async (newPostData) => {
       await queryClient.cancelQueries({ queryKey: ['posts'] });
       await queryClient.cancelQueries({ queryKey: ['userPosts', user?.id] });
@@ -59,20 +38,16 @@ export const useCreatePost = () => {
         username: user?.username,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
-        user: {
-          username: user?.username
-        },
+        user: { username: user?.username },
         comments: []
       };
 
       if (Array.isArray(previousPosts)) {
         queryClient.setQueryData(['posts'], [optimisticPost, ...previousPosts]);
       }
-
       if (Array.isArray(previousUserPosts)) {
         queryClient.setQueryData(['userPosts', user?.id], [optimisticPost, ...previousUserPosts]);
       }
-
       if (user?.username && previousUserProfile) {
         queryClient.setQueryData(['user', user.username], {
           ...previousUserProfile,
@@ -80,41 +55,25 @@ export const useCreatePost = () => {
         });
       }
 
-      return {
-        previousPosts,
-        previousUserPosts,
-        previousUserProfile,
-        optimisticPost
-      };
+      return { previousPosts, previousUserPosts, previousUserProfile, optimisticPost };
     },
     onError: (err, newPostData, context) => {
-      if (context?.previousPosts) {
-        queryClient.setQueryData(['posts'], context.previousPosts);
-      }
-      if (context?.previousUserPosts) {
-        queryClient.setQueryData(['userPosts', user?.id], context.previousUserPosts);
-      }
+      if (context?.previousPosts) queryClient.setQueryData(['posts'], context.previousPosts);
+      if (context?.previousUserPosts) queryClient.setQueryData(['userPosts', user?.id], context.previousUserPosts);
       if (context?.previousUserProfile && user?.username) {
         queryClient.setQueryData(['user', user.username], context.previousUserProfile);
       }
-
       setError(err.message || 'Failed to create post. Please try again.');
     },
     onSuccess: async (newPost, variables, context) => {
-      const realPost = newPost;
-
       queryClient.setQueryData(['posts'], (oldPosts) => {
         if (!Array.isArray(oldPosts)) return oldPosts;
-        return oldPosts.map(post =>
-          post.id === context?.optimisticPost?.id ? realPost : post
-        );
+        return oldPosts.map(post => post.id === context?.optimisticPost?.id ? newPost : post);
       });
 
       queryClient.setQueryData(['userPosts', user?.id], (oldPosts) => {
         if (!Array.isArray(oldPosts)) return oldPosts;
-        return oldPosts.map(post =>
-          post.id === context?.optimisticPost?.id ? realPost : post
-        );
+        return oldPosts.map(post => post.id === context?.optimisticPost?.id ? newPost : post);
       });
 
       if (user?.username) {
@@ -122,19 +81,14 @@ export const useCreatePost = () => {
           if (!oldData) return oldData;
           return {
             ...oldData,
-            posts: oldData.posts?.map(post =>
-              post.id === context?.optimisticPost?.id ? realPost : post
-            ) || []
+            posts: oldData.posts?.map(post => post.id === context?.optimisticPost?.id ? newPost : post) || []
           };
         });
       }
 
-      if (realPost.slug) {
-        queryClient.setQueryData(['post', realPost.slug], realPost);
-      }
-
-      if (realPost.slug) {
-        navigate(`/post/${realPost.slug}`);
+      if (newPost.slug) {
+        queryClient.setQueryData(['post', newPost.slug], newPost);
+        navigate(`/post/${newPost.slug}`);
       } else {
         navigate('/dashboard');
       }
@@ -145,38 +99,32 @@ export const useCreatePost = () => {
       if (user?.username) {
         queryClient.invalidateQueries({ queryKey: ['user', user.username] });
       }
-    },
+    }
   });
 
   const handleCreatePost = (postData) => {
     setError('');
 
-    // Client-side validation
     if (!postData.title.trim()) {
       setError('Title is required');
       return;
     }
-
     if (postData.title.length > POST_LIMITS.TITLE_MAX) {
       setError(`Title must be less than ${POST_LIMITS.TITLE_MAX} characters`);
       return;
     }
-
     if (!postData.content.trim()) {
       setError('Content is required');
       return;
     }
-
     if (postData.content.trim().length < POST_LIMITS.CONTENT_MIN) {
       setError(`Content must be at least ${POST_LIMITS.CONTENT_MIN} characters`);
       return;
     }
-
     if (postData.content.length > POST_LIMITS.CONTENT_MAX) {
       setError(`Content must be less than ${POST_LIMITS.CONTENT_MAX} characters`);
       return;
     }
-
     if (!validateCodeBlocks(postData.content)) {
       setError(`Code blocks must be less than ${POST_LIMITS.CODE_BLOCK_MAX} characters`);
       return;
