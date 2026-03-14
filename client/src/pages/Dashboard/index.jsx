@@ -72,7 +72,7 @@ const Dashboard = () => {
 
   const handleConfirmDelete = () => {
     if (postToDelete) {
-      deletePostMutation.mutate(postToDelete.slug || postToDelete.id);
+      deletePostMutation.mutate(postToDelete.slug);
     }
   };
 

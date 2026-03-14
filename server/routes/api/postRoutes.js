@@ -9,11 +9,11 @@ const { sessionSecurity, checkInactivity } = require('../../middleware/sessionSe
 // Public routes
 router.get('/', cacheMiddleware, postController.getAllPosts);
 router.get('/user/posts', cacheMiddleware, postController.getUserPosts);
-router.get('/:identifier', cacheMiddleware, postController.getSinglePost);
+router.get('/:slug', cacheMiddleware, postController.getSinglePost);
 
 // Protected routes (require authentication)
 router.post('/', sessionSecurity, checkInactivity, withAuth, postLimiter, validateNewPost, postController.createPost);
-router.put('/:identifier', sessionSecurity, checkInactivity, withAuth, validatePostUpdate, postController.updatePost);
-router.delete('/:identifier', sessionSecurity, checkInactivity, withAuth, postController.deletePost);
+router.put('/:slug', sessionSecurity, checkInactivity, withAuth, validatePostUpdate, postController.updatePost);
+router.delete('/:slug', sessionSecurity, checkInactivity, withAuth, postController.deletePost);
 
 module.exports = router;

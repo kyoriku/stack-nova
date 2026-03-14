@@ -9,10 +9,9 @@ const cacheMiddleware = async (req, res, next) => {
       cacheKey = `user:${req.session.user_id}:posts`;
     } else if (req.path.includes('/edit-post/')) {
       // Log edit-post requests but don't cache them
-      cacheKey = `edit-post:${req.params.identifier || 'unknown'}`;
+      cacheKey = `edit-post:${req.params.slug || 'unknown'}`;
     } else if (req.baseUrl.includes('posts')) {
-      // Updated to use 'identifier' parameter (which can be slug or ID)
-      cacheKey = req.params.identifier ? `post:${req.params.identifier}` : 'posts:all';
+      cacheKey = req.params.slug ? `post:${req.params.slug}` : 'posts:all';
     } else if (req.baseUrl.includes('comments')) {
       cacheKey = `comments:${req.params.postId}`;
     } else if (req.baseUrl.includes('users') && req.path.includes('/profile/')) {

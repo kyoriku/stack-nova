@@ -256,9 +256,7 @@ export function anonymousUserJourney() {
     if (posts && posts.length > 0) {
       const randomPost = randomItem(posts);
 
-      // Use slug if available, fallback to id
-      const identifier = randomPost.slug || randomPost.id;
-      const postRes = http.get(`${BASE_URL}/api/posts/${identifier}`);
+      const postRes = http.get(`${BASE_URL}/api/posts/${randomPost.slug}`);
 
       check(postRes, {
         'single post status 200': (r) => r.status === 200,
