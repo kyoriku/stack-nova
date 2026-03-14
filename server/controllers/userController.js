@@ -3,6 +3,7 @@ const redisService = require('../config/redisCache');
 const sequelize = require('../config/connection');
 const { AppError, asyncHandler } = require('../middleware/errorHandler');
 const ERROR_CODES = require('../constants/errorCodes');
+const getSessionRedisClient = require('../config/redisSession');
 
 // Common user profile query options
 const userProfileQueryOptions = {
@@ -46,6 +47,29 @@ const setSessionData = (req, userId) => {
   req.session.userAgent = req.headers['user-agent'];
   req.session.ipAddress = req.ip || req.connection.remoteAddress;
   req.session.createdAt = Date.now();
+};
+
+// Track session in user's session set
+const trackSession = async (userId, sessionId) => {
+  try {
+    const redisClient = await getSessionRedisClient();
+    const key = `user:${userId}:sessions`;
+    await redisClient.sAdd(key, sessionId);
+    // Set TTL on the set to match max session lifetime (30 days for remember me)
+    await redisClient.expire(key, 30 * 24 * 60 * 60);
+  } catch (err) {
+    console.error('Failed to track session:', err);
+  }
+};
+
+// Remove session from user's session set
+const untrackSession = async (userId, sessionId) => {
+  try {
+    const redisClient = await getSessionRedisClient();
+    await redisClient.sRem(`user:${userId}:sessions`, sessionId);
+  } catch (err) {
+    console.error('Failed to untrack session:', err);
+  }
 };
 
 // Helper function for OAuth - improved username generation
@@ -110,7 +134,7 @@ const userController = {
 
       setSessionData(req, userData.id);
 
-      req.session.save((err) => {
+      req.session.save(async (err) => {
         if (err) {
           console.error('Session save error:', err);
           return next(new AppError(
@@ -119,6 +143,9 @@ const userController = {
             ERROR_CODES.SESSION_ERROR
           ));
         }
+
+        // Track session ID for logout-all support
+        await trackSession(userData.id, req.session.id);
 
         res.status(201).json({
           user: userData.get({ plain: true }),
@@ -168,13 +195,12 @@ const userController = {
       // Store remember me flag in session
       req.session.rememberMe = rememberMe || false;
 
-      // Optional: Extend session if "Remember Me" is checked
+      // Extend session if "Remember Me" is checked
       if (rememberMe) {
-        req.session.cookie.maxAge = 30 * 24 * 60 * 60 * 1000; // 30 days
-        console.log(`Extended session for user ${userData.id} (Remember Me)`);
+        req.session.cookie.maxAge = 7 * 24 * 60 * 60 * 1000; // 7 days
       }
 
-      req.session.save((err) => {
+      req.session.save(async (err) => {
         if (err) {
           console.error('Session save error:', err);
           return next(new AppError(
@@ -183,6 +209,9 @@ const userController = {
             ERROR_CODES.SESSION_ERROR
           ));
         }
+
+        // Track session ID for logout-all support
+        await trackSession(userData.id, req.session.id);
 
         res.json({
           user: userData.get({ plain: true }),
@@ -202,8 +231,11 @@ const userController = {
       );
     }
 
+    const userId = req.session.user_id;
+    const sessionId = req.session.id;
+
     // Destroy session
-    req.session.destroy((err) => {
+    req.session.destroy(async (err) => {
       if (err) {
         console.error('Session destroy error:', err);
         return next(new AppError(
@@ -212,6 +244,9 @@ const userController = {
           ERROR_CODES.SESSION_ERROR
         ));
       }
+
+      // Remove from session tracking set
+      await untrackSession(userId, sessionId);
 
       // Clear the cookie
       res.clearCookie('sessionId', {
@@ -225,7 +260,7 @@ const userController = {
     });
   }),
 
-  // Logout from all devices - FIXED VERSION
+  // Logout from all devices
   logoutAllDevices: asyncHandler(async (req, res, next) => {
     const userId = req.session.user_id;
 
@@ -237,47 +272,30 @@ const userController = {
       );
     }
 
-    // Import Redis client
-    const { createClient } = require('redis');
-    let redisClient;
+    const redisClient = await getSessionRedisClient();
+    const sessionsKey = `user:${userId}:sessions`;
 
-    try {
-      redisClient = createClient({
-        url: process.env.REDIS_URL || 'redis://localhost:6379'
-      });
+    // Get all session IDs for this user
+    const sessionIds = await redisClient.sMembers(sessionsKey);
 
-      await redisClient.connect();
-
-      // Find all session keys for this user
-      const sessionKeys = await redisClient.keys('sess:*');
-
-      // Check each session for this user_id and delete it
-      for (const key of sessionKeys) {
-        const sessionData = await redisClient.get(key);
-        if (sessionData && sessionData.includes(`"user_id":${userId}`)) {
-          await redisClient.del(key);
-        }
-      }
-
-      // Clear current session cookie
-      res.clearCookie('sessionId', {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'strict',
-        path: '/',
-      });
-
-      res.json({
-        message: 'Logged out from all devices successfully'
-      });
-    } catch (error) {
-      throw error;
-    } finally {
-      // ✅ ALWAYS close connection, even if error occurs
-      if (redisClient && redisClient.isOpen) {
-        await redisClient.quit().catch(console.error);
-      }
+    // Delete all their sessions from Redis
+    if (sessionIds.length > 0) {
+      const sessionKeys = sessionIds.map(id => `sess:${id}`);
+      await redisClient.del(sessionKeys);
     }
+
+    // Delete the tracking set itself
+    await redisClient.del(sessionsKey);
+
+    // Clear the current session cookie
+    res.clearCookie('sessionId', {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'strict',
+      path: '/',
+    });
+
+    res.json({ message: 'Logged out from all devices successfully' });
   }),
 
   // Check session status
@@ -407,7 +425,8 @@ const userController = {
 
       setSessionData(req, userData.id);
 
-      req.session.save(() => {
+      req.session.save(async () => {
+        await trackSession(userData.id, req.session.id);
         res.redirect(`${process.env.CLIENT_URL}${returnPath}`);
       });
     });
