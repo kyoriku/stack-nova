@@ -9,8 +9,12 @@ const getRedisUrl = () => {
   return process.env.REDIS_URL || 'redis://localhost:6379';
 };
 
-const createSessionRedisClient = async () => {
-  const client = createClient({
+let client = null;
+
+const getSessionRedisClient = async () => {
+  if (client) return client;
+
+  client = createClient({
     url: getRedisUrl(),
     legacyMode: false
   });
@@ -22,4 +26,4 @@ const createSessionRedisClient = async () => {
   return client;
 };
 
-module.exports = createSessionRedisClient;
+module.exports = getSessionRedisClient;
