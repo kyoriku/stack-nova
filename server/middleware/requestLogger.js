@@ -1,6 +1,6 @@
 const requestLogger = (req, res, next) => {
-  // Skip health checks and static assets to keep logs clean
-  if (req.path === '/health' || req.path === '/favicon.ico') {
+  // Only log API routes
+  if (!req.originalUrl.startsWith('/api/')) {
     return next();
   }
 
@@ -12,7 +12,7 @@ const requestLogger = (req, res, next) => {
     const method = req.method;
     const url = req.originalUrl || req.url;
     const status = res.statusCode;
-    const cache = res.locals.cacheStatus; // Set by cacheMiddleware
+    const cache = res.locals.cacheStatus;
 
     const parts = [
       `${ip} → ${method} ${url}`,
