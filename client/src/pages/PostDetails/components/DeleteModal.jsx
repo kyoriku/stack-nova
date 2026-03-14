@@ -10,10 +10,12 @@ export const DeleteModal = ({
 
   return (
     <div className="fixed inset-0 bg-white/50 dark:bg-black/50 backdrop-blur-sm 
-                  flex items-center justify-center z-50 p-4">
+                  flex items-center justify-center z-50 p-4"
+      onClick={onClose}>
       <div className="relative bg-gradient-to-br from-white to-gray-50/50 
                     dark:from-gray-800 dark:to-gray-800/50
                     rounded-2xl p-6 max-w-sm w-full
+                    onClick={(e) => e.stopPropagation()}
                     shadow-2xl shadow-gray-900/10 dark:shadow-black/40
                     border-2 border-gray-200/60 dark:border-gray-700/60
                     overflow-hidden">
@@ -42,7 +44,7 @@ export const DeleteModal = ({
                        dark:text-gray-400 dark:hover:text-gray-300
                        hover:bg-gray-100 dark:hover:bg-gray-700/50
                        rounded-lg p-1.5
-                       transition-all duration-200"
+                       transition-all duration-200 cursor-pointer"
               aria-label="Close modal"
             >
               <X size={20} />

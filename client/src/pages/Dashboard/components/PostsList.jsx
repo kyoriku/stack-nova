@@ -71,11 +71,11 @@ export const PostsList = ({ posts, onDeleteClick, prefetchPost }) => {
         {posts.map((post, index) => (
           <li
             key={post.id}
-            style={{
-              animation: 'fadeInUp 0.25s ease-out forwards',
-              animationDelay: `${index * 0.05}s`,
-              opacity: 0
-            }}
+            // style={{
+            //   animation: 'fadeInUp 0.25s ease-out forwards',
+            //   animationDelay: `${index * 0.05}s`,
+            //   opacity: 0
+            // }}
           >
             <PostItem
               post={post}
@@ -86,7 +86,7 @@ export const PostsList = ({ posts, onDeleteClick, prefetchPost }) => {
         ))}
       </ul>
 
-      <style>{`
+      {/* <style>{`
         @keyframes fadeInUp {
           from {
             opacity: 0;
@@ -97,7 +97,7 @@ export const PostsList = ({ posts, onDeleteClick, prefetchPost }) => {
             transform: translateY(0);
           }
         }
-      `}</style>
+      `}</style> */}
     </section>
   );
 };

@@ -45,7 +45,6 @@ const setSessionData = (req, userId) => {
   req.session.logged_in = true;
   req.session.userAgent = req.headers['user-agent'];
   req.session.ipAddress = req.ip || req.connection.remoteAddress;
-  req.session.lastActivity = Date.now();
   req.session.createdAt = Date.now();
 };
 
@@ -202,11 +201,6 @@ const userController = {
         ERROR_CODES.UNAUTHORIZED
       );
     }
-  //     // Check if session exists and is logged in
-  // if (!req.session || !req.session.logged_in) {
-  //   // Session already gone - this is fine, return success
-  //   return res.status(204).end();
-  // }
 
     // Destroy session
     req.session.destroy((err) => {
@@ -231,7 +225,7 @@ const userController = {
     });
   }),
 
-  // Logout from all devices
+  // Logout from all devices - FIXED VERSION
   logoutAllDevices: asyncHandler(async (req, res, next) => {
     const userId = req.session.user_id;
 
@@ -245,36 +239,45 @@ const userController = {
 
     // Import Redis client
     const { createClient } = require('redis');
-    const redisClient = createClient({
-      url: process.env.REDIS_URL || 'redis://localhost:6379'
-    });
+    let redisClient;
 
-    await redisClient.connect();
+    try {
+      redisClient = createClient({
+        url: process.env.REDIS_URL || 'redis://localhost:6379'
+      });
 
-    // Find all session keys for this user
-    const sessionKeys = await redisClient.keys('sess:*');
+      await redisClient.connect();
 
-    // Check each session for this user_id and delete it
-    for (const key of sessionKeys) {
-      const sessionData = await redisClient.get(key);
-      if (sessionData && sessionData.includes(`"user_id":${userId}`)) {
-        await redisClient.del(key);
+      // Find all session keys for this user
+      const sessionKeys = await redisClient.keys('sess:*');
+
+      // Check each session for this user_id and delete it
+      for (const key of sessionKeys) {
+        const sessionData = await redisClient.get(key);
+        if (sessionData && sessionData.includes(`"user_id":${userId}`)) {
+          await redisClient.del(key);
+        }
+      }
+
+      // Clear current session cookie
+      res.clearCookie('sessionId', {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'strict',
+        path: '/',
+      });
+
+      res.json({
+        message: 'Logged out from all devices successfully'
+      });
+    } catch (error) {
+      throw error;
+    } finally {
+      // ✅ ALWAYS close connection, even if error occurs
+      if (redisClient && redisClient.isOpen) {
+        await redisClient.quit().catch(console.error);
       }
     }
-
-    await redisClient.quit();
-
-    // Clear current session cookie
-    res.clearCookie('sessionId', {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict',
-      path: '/',
-    });
-
-    res.json({
-      message: 'Logged out from all devices successfully'
-    });
   }),
 
   // Check session status
@@ -293,30 +296,11 @@ const userController = {
       return res.status(204).end();
     }
 
-    // Update last activity
-    req.session.lastActivity = Date.now();
-
     res.status(200).json({
-      user: userData.get({ plain: true }),
-      rememberMe: req.session.rememberMe || false
+      user: userData.get({ plain: true })
     });
   }),
 
-  heartbeat: asyncHandler(async (req, res) => {
-  // Return active session info, or indicate no session
-  if (!req.session || !req.session.user_id) {
-    return res.status(401).json({
-      active: false,
-      message: 'No active session'
-    });
-  }
-
-  res.status(200).json({
-    active: true,
-    userId: req.session.user_id,
-    lastActivity: req.session.lastActivity
-  });
-}),
 
   // Get user profile
   getUserProfile: asyncHandler(async (req, res) => {

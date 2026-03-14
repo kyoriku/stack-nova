@@ -4,32 +4,19 @@ export const DeleteModal = ({
   isOpen,
   onClose,
   onConfirm,
-  isDeleting,
-  itemName,
-  itemType = "Item"
+  isDeleting
 }) => {
   if (!isOpen) return null;
 
-  const modalId = "delete-confirmation-modal";
-  const modalTitleId = "delete-modal-title";
-  const modalDescriptionId = "delete-modal-description";
-
   return (
-    <div
-      className="fixed inset-0 bg-white/50 dark:bg-black/50 backdrop-blur-sm 
-                flex items-center justify-center z-50 p-4"
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby={modalTitleId}
-      aria-describedby={modalDescriptionId}
-      id={modalId}
-    >
-      <section className="relative bg-gradient-to-br from-white to-gray-50/50 
-                        dark:from-gray-800 dark:to-gray-800/50
-                        rounded-2xl p-6 max-w-sm w-full
-                        shadow-2xl shadow-gray-900/10 dark:shadow-black/40
-                        border-2 border-gray-200/60 dark:border-gray-700/60
-                        overflow-hidden">
+    <div onClick={onClose} className="fixed inset-0 bg-white/50 dark:bg-black/50 backdrop-blur-sm 
+                  flex items-center justify-center z-50 p-4">
+      <div onClick={(e) => e.stopPropagation()} className="relative bg-gradient-to-br from-white to-gray-50/50 
+                    dark:from-gray-800 dark:to-gray-800/50
+                    rounded-2xl p-6 max-w-sm w-full
+                    shadow-2xl shadow-gray-900/10 dark:shadow-black/40
+                    border-2 border-gray-200/60 dark:border-gray-700/60
+                    overflow-hidden">
 
         {/* Background gradient accent */}
         <div className="absolute top-0 right-0 w-32 h-32 
@@ -38,19 +25,16 @@ export const DeleteModal = ({
                       rounded-full blur-3xl -z-0" />
 
         <div className="relative z-10">
-          <header className="flex justify-between items-start mb-4">
+          <div className="flex justify-between items-start mb-4">
             <div className="flex items-center gap-3">
               <div className="flex-shrink-0 w-10 h-10 rounded-full 
                             bg-red-100 dark:bg-red-900/30
                             flex items-center justify-center">
                 <AlertTriangle className="w-5 h-5 text-red-600 dark:text-red-400" />
               </div>
-              <h2
-                id={modalTitleId}
-                className="text-lg font-bold text-gray-900 dark:text-gray-100"
-              >
-                Delete {itemType}
-              </h2>
+              <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100">
+                Delete Comment
+              </h3>
             </div>
             <button
               onClick={onClose}
@@ -58,21 +42,18 @@ export const DeleteModal = ({
                        dark:text-gray-400 dark:hover:text-gray-300
                        hover:bg-gray-100 dark:hover:bg-gray-700/50
                        rounded-lg p-1.5
-                       transition-all duration-200"
-              aria-label="Close dialog"
+                       transition-all duration-200 cursor-pointer"
+              aria-label="Close modal"
             >
-              <X size={20} aria-hidden="true" />
+              <X size={20} />
             </button>
-          </header>
+          </div>
 
-          <p
-            id={modalDescriptionId}
-            className="text-gray-600 dark:text-gray-300 mb-6 leading-relaxed"
-          >
-            Are you sure you want to delete <span className="font-semibold">"{itemName}"</span>? This action cannot be undone.
+          <p className="text-gray-600 dark:text-gray-300 mb-6 leading-relaxed">
+            Are you sure you want to delete this comment? This action cannot be undone.
           </p>
 
-          <footer className="flex justify-end gap-2">
+          <div className="flex justify-end gap-2">
             <button
               onClick={onClose}
               className="px-5 py-2.5 rounded-xl
@@ -98,19 +79,17 @@ export const DeleteModal = ({
                        disabled:opacity-50 disabled:cursor-not-allowed 
                        disabled:hover:scale-100 disabled:hover:shadow-none
                        cursor-pointer min-w-[85px]
-                       flex items-center justify-center
                        transition-all duration-200"
-              aria-busy={isDeleting}
             >
               {isDeleting ? (
-                <span className="inline-block h-5 w-5 animate-spin rounded-full border-2 border-solid border-white border-r-transparent align-[-0.125em]" aria-hidden="true" />
+                <div className="inline-block h-5 w-5 animate-spin rounded-full border-2 border-solid border-white border-r-transparent align-[-0.125em]" />
               ) : (
                 'Delete'
               )}
             </button>
-          </footer>
+          </div>
         </div>
-      </section>
+      </div>
     </div>
   );
 };

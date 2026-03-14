@@ -1,9 +1,6 @@
 const { AppError } = require('./errorHandler');
 const ERROR_CODES = require('../constants/errorCodes');
 
-const INACTIVITY_TIMEOUT = 60 * 60 * 1000; // 60 minutes
-// const INACTIVITY_TIMEOUT = 2 * 60 * 1000; // 2 minutes for testing
-
 // Extract browser family from user agent
 const extractBrowserFamily = (ua) => {
   if (!ua) return 'unknown';
@@ -29,7 +26,6 @@ const sessionSecurity = (req, res, next) => {
   if (!req.session.userAgent || !req.session.ipAddress) {
     req.session.userAgent = currentUserAgent;
     req.session.ipAddress = currentIP;
-    req.session.lastActivity = Date.now();
     return next();
   }
 
@@ -58,53 +54,4 @@ const sessionSecurity = (req, res, next) => {
   next();
 };
 
-// Check for session inactivity timeout
-const checkInactivity = (req, res, next) => {
-  // console.log('checkInactivity running for:', req.path);
-  if (req.session.logged_in) {
-    // Skip inactivity check if remember me is active
-    if (req.session.rememberMe) {
-      // Still update last activity for record keeping
-      req.session.lastActivity = Date.now();
-      return next();
-    }
-
-    const now = Date.now();
-
-    // Check if session expired due to inactivity (only for non-remember-me sessions)
-    if (req.session.lastActivity) {
-      const inactiveTime = now - req.session.lastActivity;
-
-      if (inactiveTime > INACTIVITY_TIMEOUT) {
-        const inactiveMinutes = Math.floor(inactiveTime / 1000 / 60);
-        
-        // Use console.info for expected behavior (not an error)
-        console.info(
-          `Session timeout: user ${req.session.user_id}`,
-          `inactive for ${inactiveMinutes}m (limit: ${INACTIVITY_TIMEOUT / 1000 / 60}m)`
-        );
-
-        req.session.destroy((err) => {
-          if (err) console.error('Session destroy error:', err);
-        });
-
-        return next(new AppError(
-          'Session expired due to inactivity. Please log in again.',
-          401,
-          ERROR_CODES.SESSION_TIMEOUT
-        ));
-      }
-    }
-
-    // Update last activity timestamp on every request
-    req.session.lastActivity = now;
-  }
-
-  next();
-};
-
-module.exports = {
-  sessionSecurity,
-  checkInactivity,
-  INACTIVITY_TIMEOUT
-};
+module.exports = { sessionSecurity };
