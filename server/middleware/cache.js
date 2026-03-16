@@ -1,6 +1,6 @@
 const redisService = require('../config/redisCache');
 
-const CACHE_TTL = 3600; // 1 hour
+const CACHE_TTL = 86400; // 24 hours
 
 const cacheMiddleware = async (req, res, next) => {
   try {
