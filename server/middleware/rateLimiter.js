@@ -11,6 +11,20 @@ const getRedisUrl = () => {
   return process.env.REDIS_URL || 'redis://localhost:6379';
 };
 
+// Get real client IP, accounting for Fastly proxy
+const getClientIP = (req) => {
+  const fastlyIP = req.headers['fastly-client-ip'];
+  if (fastlyIP) return fastlyIP.trim();
+
+  const forwarded = req.headers['x-forwarded-for'];
+  if (forwarded) {
+    const ips = forwarded.split(',');
+    return ips[ips.length - 1].trim();
+  }
+
+  return req.ip;
+};
+
 // Helper function to skip rate limiting for localhost in development
 const skipLocalhost = (req) => {
   const isLocalhost = req.ip === '::1' ||
@@ -71,6 +85,7 @@ if (process.env.NODE_ENV !== 'test') {
 const apiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
   max: 200, // limit each IP to 200 requests per windowMs
+  keyGenerator: (req) => getClientIP(req),
   skip: skipLocalhost,
   standardHeaders: true,
   legacyHeaders: false,
@@ -90,6 +105,7 @@ const apiLimiter = rateLimit({
 const loginLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
   max: 15, // limit each IP to 15 requests per windowMs
+  keyGenerator: (req) => getClientIP(req),
   skip: skipLocalhost,
   standardHeaders: true,
   legacyHeaders: false,
@@ -157,6 +173,7 @@ const commentLimiter = rateLimit({
 const oauthLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
   max: 10, // limit each IP to 10 requests per windowMs
+  keyGenerator: (req) => getClientIP(req),
   skip: skipLocalhost,
   standardHeaders: true,
   legacyHeaders: false,
@@ -178,6 +195,7 @@ const oauthLimiter = rateLimit({
 const readLimiter = rateLimit({
   windowMs: 60 * 1000, // 1 minute
   max: 100, // limit each IP to 100 requests per windowMs
+  keyGenerator: (req) => getClientIP(req),
   standardHeaders: true,
   legacyHeaders: false,
   store: new RedisStore({
