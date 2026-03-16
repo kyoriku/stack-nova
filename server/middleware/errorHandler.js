@@ -35,8 +35,8 @@ const errorHandler = (err, req, res, next) => {
       userId: req.session?.user_id || 'unknown',
       message: err.message
     });
-  } else {
-    // Actual errors - log with full detail
+  } else if (err.statusCode >= 500 || !err.statusCode) {
+    // Server errors only - log with full detail
     console.error('Error occurred:', {
       message: err.message,
       stack: err.stack,
@@ -47,6 +47,7 @@ const errorHandler = (err, req, res, next) => {
       userId: req.session?.user_id
     });
   }
+  // 4xx errors are expected client errors - not logged
 
   // Default error values
   let statusCode = err.statusCode || 500;
