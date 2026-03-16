@@ -48,9 +48,6 @@ app.use('/', healthRoutes);
 createSessionConfig(isProd).then((sessionConfig) => {
   app.use(session(sessionConfig));
 
-  // Security checks
-  app.use(checkBannedIP);
-
   // Rate limiting
   app.use(apiLimiter);
   app.use(readLimiter);
@@ -59,6 +56,9 @@ createSessionConfig(isProd).then((sessionConfig) => {
   if (!isProd) {
     app.use('/api/dev', require('./routes/devRoutes'));
   }
+
+  // Security checks
+  app.use(checkBannedIP);
 
   // Asset headers
   app.use(faviconHeaders);
