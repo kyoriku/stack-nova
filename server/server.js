@@ -9,7 +9,7 @@ const sequelize = require('./config/connection');
 const createSessionConfig = require('./config/session');
 const getHelmetConfig = require('./config/helmet');
 const { apiLimiter, readLimiter } = require('./middleware/rateLimiter');
-const { checkBannedIP, botHoneypot } = require('./middleware/botHoneypot');
+const { botHoneypot } = require('./middleware/botHoneypot');
 const faviconHeaders = require('./middleware/favicon');
 const { errorHandler } = require('./middleware/errorHandler');
 const requestLogger = require('./middleware/requestLogger');
@@ -48,8 +48,8 @@ app.use('/', healthRoutes);
 createSessionConfig(isProd).then((sessionConfig) => {
   app.use(session(sessionConfig));
 
-  // Security checks
-  app.use(checkBannedIP);
+  // Bot honeypot
+  app.use(botHoneypot);
 
   // Rate limiting
   app.use(apiLimiter);
@@ -70,9 +70,6 @@ createSessionConfig(isProd).then((sessionConfig) => {
 
   // API routes
   app.use(routes);
-
-  // Bot honeypot
-  app.use(botHoneypot);
 
   // SPA catch-all
   app.get('*', (req, res) => {
