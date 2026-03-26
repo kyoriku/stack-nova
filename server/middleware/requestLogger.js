@@ -8,7 +8,7 @@ const requestLogger = (req, res, next) => {
 
   res.on('finish', () => {
     const duration = Date.now() - start;
-    const ip = req.headers['fastly-client-ip'] || req.ip || req.connection.remoteAddress || '-';
+    const ip = req.headers['x-real-ip'] || req.headers['fastly-client-ip'] || req.ip || req.connection.remoteAddress || '-';
     const method = req.method;
     const url = req.originalUrl || req.url;
     const status = res.statusCode;
