@@ -1,7 +1,6 @@
 const rateLimit = require('express-rate-limit');
 const { RedisStore } = require('rate-limit-redis');
 const { createClient } = require('redis');
-const { trackSuspiciousActivity } = require('./botHoneypot');
 
 const getRedisUrl = () => {
   if (process.env.REDIS_URL && process.env.REDIS_PASSWORD) {
@@ -13,6 +12,9 @@ const getRedisUrl = () => {
 
 // Get real client IP, accounting for Fastly proxy
 const getClientIP = (req) => {
+  const realIP = req.headers['x-real-ip'];
+  if (realIP) return realIP.trim();
+
   const fastlyIP = req.headers['fastly-client-ip'];
   if (fastlyIP) return fastlyIP.trim();
 
@@ -24,7 +26,6 @@ const getClientIP = (req) => {
 
   return req.ip;
 };
-
 // Helper function to skip rate limiting for localhost in development
 const skipLocalhost = (req) => {
   const isLocalhost = req.ip === '::1' ||
@@ -114,9 +115,7 @@ const loginLimiter = rateLimit({
     prefix: 'rl:login:',
     sendCommand: (...args) => redisClient.sendCommand(args)
   }),
-  handler: async (req, res) => {
-    // Track as high-severity - likely credential stuffing attack
-    await trackSuspiciousActivity(req.ip, req.path, 'high');
+  handler: (req, res) => {
     res.status(429).json({
       error: 'Too many login attempts. Please try again later.'
     });
@@ -182,9 +181,7 @@ const oauthLimiter = rateLimit({
     prefix: 'rl:oauth:',
     sendCommand: (...args) => redisClient.sendCommand(args)
   }),
-  handler: async (req, res) => {
-    // Track as high-severity - likely OAuth abuse
-    await trackSuspiciousActivity(req.ip, req.path, 'high');
+  handler: (req, res) => {
     res.status(429).json({
       error: 'Too many authentication attempts, please try again later.'
     });
