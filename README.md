@@ -110,7 +110,7 @@ To run this project locally:
     DB_PASSWORD='your_MySQL_password'
     
     # Session Configuration
-    SESSION_SECRET='your_session_secret'
+    SESSION_SECRET='your_session_secret' # Generate using: openssl rand -hex 32
     
     # Redis Configuration
     REDIS_URL='redis://localhost:6379'
