@@ -65,7 +65,6 @@ const botHoneypot = (req, res, next) => {
   const isEnvProbe = path.includes('.env');
 
   if (isBotPath || isSuspiciousExt || isEnvProbe) {
-    console.warn(`[HONEYPOT] ${ip} → ${req.path}`);
     return res.status(404).json({ error: 'Not Found' });
   }
 
