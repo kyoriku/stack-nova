@@ -101,7 +101,7 @@ To run this project locally:
     ```bash
     npm install
     ```
- 
+
 4. Create a `.env` file in the server directory
     ```bash
     # Database Configuration
