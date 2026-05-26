@@ -33,30 +33,18 @@ const skipLocalhost = (req) => {
     req.ip === '::ffff:127.0.0.1' ||
     req.ip === '127.0.0.1';
 
-  // If not localhost, never skip
-  if (!isLocalhost)
-    return false;
+  if (!isLocalhost) return false;
+  if (process.env.NODE_ENV === 'production') return false;
 
-  // If in production, never skip localhost
-  if (process.env.NODE_ENV === 'production')
-    return false;
-
-  // In development: check for test header OR environment variable
-  // This allows testing without restarting server
   const isTestRequest = req.headers['x-bypass-localhost-whitelist'] === 'true';
   const isTestMode = process.env.TEST_RATE_LIMITS === 'true';
 
-  // Don't skip (apply rate limits) if either test mode is active
-  if (isTestRequest || isTestMode)
-    return false;
+  if (isTestRequest || isTestMode) return false;
 
-  // Otherwise skip rate limits for localhost in development
   return true;
 };
 
 // Create Redis client for rate limiting
-// - keepAlive prevents idle TCP resets on cloud networks
-// - reconnectStrategy retries forever with capped backoff (never gives up)
 const redisClient = createClient({
   url: getRedisUrl(),
   socket: {
@@ -73,154 +61,109 @@ redisClient.on('connect', () => {
   console.log('Redis Rate Limiter Connected');
 });
 
-// Connect to Redis (RedisStore will wait for connection)
 if (process.env.NODE_ENV !== 'test') {
   redisClient.connect().catch((err) => {
     console.error('Redis Rate Limiter failed to connect:', err);
   });
 }
 
-// Fail-open sendCommand: if Redis is disconnected, skip rate limiting
-// rather than throwing. Keeps the site responsive during transient outages.
-const sendCommand = (...args) => {
-  if (!redisClient.isReady) return Promise.resolve(null);
-  return redisClient.sendCommand(args);
+// Pass commands straight through. rate-limit-redis needs real Redis replies
+// (SCRIPT LOAD returns a SHA string, EVALSHA returns an array, etc) - we
+// can't fake those, so fail-open happens at the middleware layer below.
+const sendCommand = (...args) => redisClient.sendCommand(args);
+
+// Wrap a limiter so it skips entirely when Redis is unavailable.
+// Better than 500ing every request during a transient disconnect.
+const failOpen = (limiter) => (req, res, next) => {
+  if (!redisClient.isReady) return next();
+  return limiter(req, res, next);
 };
 
-// General API rate limiter
 const apiLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 200, // limit each IP to 200 requests per windowMs
+  windowMs: 15 * 60 * 1000,
+  max: 200,
   keyGenerator: (req) => getClientIP(req),
   skip: skipLocalhost,
   standardHeaders: true,
   legacyHeaders: false,
-  store: new RedisStore({
-    client: redisClient,
-    prefix: 'rl:api:',
-    sendCommand
-  }),
+  store: new RedisStore({ client: redisClient, prefix: 'rl:api:', sendCommand }),
   handler: (req, res) => {
-    res.status(429).json({
-      error: 'Too many requests from this IP, please try again later.'
-    });
+    res.status(429).json({ error: 'Too many requests from this IP, please try again later.' });
   }
 });
 
-// Login rate limiter with bot tracking
 const loginLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 15, // limit each IP to 15 requests per windowMs
+  windowMs: 15 * 60 * 1000,
+  max: 15,
   keyGenerator: (req) => getClientIP(req),
   skip: skipLocalhost,
   standardHeaders: true,
   legacyHeaders: false,
-  store: new RedisStore({
-    client: redisClient,
-    prefix: 'rl:login:',
-    sendCommand
-  }),
+  store: new RedisStore({ client: redisClient, prefix: 'rl:login:', sendCommand }),
   handler: (req, res) => {
-    res.status(429).json({
-      error: 'Too many login attempts. Please try again later.'
-    });
+    res.status(429).json({ error: 'Too many login attempts. Please try again later.' });
   }
 });
 
-// Post creation rate limiter
 const postLimiter = rateLimit({
-  windowMs: 60 * 60 * 1000, // 1 hour
-  max: 25, // limit each IP to 25 requests per windowMs
+  windowMs: 60 * 60 * 1000,
+  max: 25,
   skip: skipLocalhost,
   standardHeaders: true,
   legacyHeaders: false,
-  keyGenerator: (req) => {
-    return req.session?.user_id ? `user:${req.session.user_id}` : `ip:${req.ip}`;
-  },
-  store: new RedisStore({
-    client: redisClient,
-    prefix: 'rl:post:',
-    sendCommand
-  }),
+  keyGenerator: (req) => req.session?.user_id ? `user:${req.session.user_id}` : `ip:${req.ip}`,
+  store: new RedisStore({ client: redisClient, prefix: 'rl:post:', sendCommand }),
   handler: (req, res) => {
-    res.status(429).json({
-      error: 'Too many posts created. Please try again in an hour.'
-    });
+    res.status(429).json({ error: 'Too many posts created. Please try again in an hour.' });
   },
   skipFailedRequests: true
 });
 
-// Comment creation rate limiter
 const commentLimiter = rateLimit({
-  windowMs: 60 * 60 * 1000, // 1 hour
-  max: 50, // limit each IP to 50 requests per windowMs
+  windowMs: 60 * 60 * 1000,
+  max: 50,
   skip: skipLocalhost,
   standardHeaders: true,
   legacyHeaders: false,
-  keyGenerator: (req) => {
-    return req.session?.user_id ? `user:${req.session.user_id}` : `ip:${req.ip}`;
-  },
-  store: new RedisStore({
-    client: redisClient,
-    prefix: 'rl:comment:',
-    sendCommand
-  }),
+  keyGenerator: (req) => req.session?.user_id ? `user:${req.session.user_id}` : `ip:${req.ip}`,
+  store: new RedisStore({ client: redisClient, prefix: 'rl:comment:', sendCommand }),
   handler: (req, res) => {
-    res.status(429).json({
-      error: 'Too many comments created. Please try again in an hour.'
-    });
+    res.status(429).json({ error: 'Too many comments created. Please try again in an hour.' });
   },
   skipFailedRequests: true
 });
 
-// OAuth-specific rate limiting with bot tracking
 const oauthLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 10, // limit each IP to 10 requests per windowMs
+  windowMs: 15 * 60 * 1000,
+  max: 10,
   keyGenerator: (req) => getClientIP(req),
   skip: skipLocalhost,
   standardHeaders: true,
   legacyHeaders: false,
-  store: new RedisStore({
-    client: redisClient,
-    prefix: 'rl:oauth:',
-    sendCommand
-  }),
+  store: new RedisStore({ client: redisClient, prefix: 'rl:oauth:', sendCommand }),
   handler: (req, res) => {
-    res.status(429).json({
-      error: 'Too many authentication attempts, please try again later.'
-    });
+    res.status(429).json({ error: 'Too many authentication attempts, please try again later.' });
   }
 });
 
-// Read operations rate limiter
 const readLimiter = rateLimit({
-  windowMs: 60 * 1000, // 1 minute
-  max: 100, // limit each IP to 100 requests per windowMs
+  windowMs: 60 * 1000,
+  max: 100,
   keyGenerator: (req) => getClientIP(req),
   standardHeaders: true,
   legacyHeaders: false,
-  store: new RedisStore({
-    client: redisClient,
-    prefix: 'rl:read:',
-    sendCommand
-  }),
+  store: new RedisStore({ client: redisClient, prefix: 'rl:read:', sendCommand }),
   handler: (req, res) => {
-    res.status(429).json({
-      error: 'Too many requests. Please slow down.'
-    });
+    res.status(429).json({ error: 'Too many requests. Please slow down.' });
   },
-  skip: (req) => {
-    // Skip for non-GET requests OR localhost in development
-    return req.method !== 'GET' || skipLocalhost(req);
-  }
+  skip: (req) => req.method !== 'GET' || skipLocalhost(req)
 });
 
 module.exports = {
-  apiLimiter,
-  loginLimiter,
-  postLimiter,
-  commentLimiter,
-  oauthLimiter,
-  readLimiter
+  apiLimiter: failOpen(apiLimiter),
+  loginLimiter: failOpen(loginLimiter),
+  postLimiter: failOpen(postLimiter),
+  commentLimiter: failOpen(commentLimiter),
+  oauthLimiter: failOpen(oauthLimiter),
+  readLimiter: failOpen(readLimiter)
 };
