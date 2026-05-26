@@ -16,7 +16,10 @@ const getSessionRedisClient = async () => {
 
   client = createClient({
     url: getRedisUrl(),
-    legacyMode: false
+    legacyMode: false,
+    socket: {
+      keepAlive: 30000
+    }
   });
 
   client.on('error', (err) => console.log('Redis Session Store Error:', err));

@@ -26,6 +26,7 @@ const getClientIP = (req) => {
 
   return req.ip;
 };
+
 // Helper function to skip rate limiting for localhost in development
 const skipLocalhost = (req) => {
   const isLocalhost = req.ip === '::1' ||
@@ -54,16 +55,13 @@ const skipLocalhost = (req) => {
 };
 
 // Create Redis client for rate limiting
+// - keepAlive prevents idle TCP resets on cloud networks
+// - reconnectStrategy retries forever with capped backoff (never gives up)
 const redisClient = createClient({
   url: getRedisUrl(),
   socket: {
-    reconnectStrategy: (retries) => {
-      if (retries > 5) {
-        console.error('Redis rate limiter: Max retries reached');
-        return new Error('Max retries reached');
-      }
-      return Math.min(retries * 100, 3000);
-    }
+    keepAlive: 30000,
+    reconnectStrategy: (retries) => Math.min(retries * 100, 3000)
   }
 });
 
@@ -82,6 +80,13 @@ if (process.env.NODE_ENV !== 'test') {
   });
 }
 
+// Fail-open sendCommand: if Redis is disconnected, skip rate limiting
+// rather than throwing. Keeps the site responsive during transient outages.
+const sendCommand = (...args) => {
+  if (!redisClient.isReady) return Promise.resolve(null);
+  return redisClient.sendCommand(args);
+};
+
 // General API rate limiter
 const apiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
@@ -93,7 +98,7 @@ const apiLimiter = rateLimit({
   store: new RedisStore({
     client: redisClient,
     prefix: 'rl:api:',
-    sendCommand: (...args) => redisClient.sendCommand(args)
+    sendCommand
   }),
   handler: (req, res) => {
     res.status(429).json({
@@ -113,7 +118,7 @@ const loginLimiter = rateLimit({
   store: new RedisStore({
     client: redisClient,
     prefix: 'rl:login:',
-    sendCommand: (...args) => redisClient.sendCommand(args)
+    sendCommand
   }),
   handler: (req, res) => {
     res.status(429).json({
@@ -135,7 +140,7 @@ const postLimiter = rateLimit({
   store: new RedisStore({
     client: redisClient,
     prefix: 'rl:post:',
-    sendCommand: (...args) => redisClient.sendCommand(args)
+    sendCommand
   }),
   handler: (req, res) => {
     res.status(429).json({
@@ -158,7 +163,7 @@ const commentLimiter = rateLimit({
   store: new RedisStore({
     client: redisClient,
     prefix: 'rl:comment:',
-    sendCommand: (...args) => redisClient.sendCommand(args)
+    sendCommand
   }),
   handler: (req, res) => {
     res.status(429).json({
@@ -179,7 +184,7 @@ const oauthLimiter = rateLimit({
   store: new RedisStore({
     client: redisClient,
     prefix: 'rl:oauth:',
-    sendCommand: (...args) => redisClient.sendCommand(args)
+    sendCommand
   }),
   handler: (req, res) => {
     res.status(429).json({
@@ -198,7 +203,7 @@ const readLimiter = rateLimit({
   store: new RedisStore({
     client: redisClient,
     prefix: 'rl:read:',
-    sendCommand: (...args) => redisClient.sendCommand(args)
+    sendCommand
   }),
   handler: (req, res) => {
     res.status(429).json({

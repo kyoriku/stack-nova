@@ -13,7 +13,10 @@ const getRedisUrl = () => {
 };
 
 const client = createClient({
-  url: getRedisUrl()
+  url: getRedisUrl(),
+  socket: {
+    keepAlive: 30000
+  }
 });
 
 const CACHE_TTL = 3600; // 1 hour
